@@ -172,3 +172,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# ___________________________
+
+# Do not commit data folder to github 
+data/
