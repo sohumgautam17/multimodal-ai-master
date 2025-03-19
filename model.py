@@ -1,4 +1,3 @@
-#%%%
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,7 +10,8 @@ class CNN_Encoder(nn.Module):
 
         # Load Pretrained Model: https://pytorch.org/vision/0.20/models.html
 
-        self.efficientnet = models.efficientnet_b7(pretrained=True)
+        #Input layer to efficient net b3 is 300 x 300 x 3 (we will preprocess in another file)
+        self.efficientnet = models.efficientnet_b3(pretrained=True)
 
         # Replace the final fully connected layer in the CNN with a new one, adjusted for our output size
         # This output of this layer will be fed to the LSTM Decoder
@@ -85,3 +85,13 @@ class CNN_to_LSTM(nn.Module):
                 
     
         return [vocabulary.index2word[i] for i in caption]
+    
+
+def strength_test():
+    tensor = torch.randn(32, 64, 64, 3)
+    caption = torch.randint(0, 10000, (32, 10)) # Assume 10,000 words in the vocab and 32 captions of 10 words each
+
+
+    model = CNN_to_LSTM(embed_size=256, hidden_size=512, num_layers=3, vocab_size=10000)
+
+if __name__ == "__main__":
