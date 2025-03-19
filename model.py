@@ -8,21 +8,28 @@ class CNN_Encoder(nn.Module):
     def __init__(self, embed_size):
         super().__init__()
 
-        # Load Pretrained Model: https://pytorch.org/vision/0.20/models.html
-
-        #Input layer to efficient net b3 is 300 x 300 x 3 (we will preprocess in another file)
-        self.efficientnet = models.efficientnet_b3(pretrained=True)
-
-        # Replace the final fully connected layer in the CNN with a new one, adjusted for our output size
-        # This output of this layer will be fed to the LSTM Decoder
-        self.efficientnet.fc = nn.Linear(self.efficientnet.fc.in_features, embed_size)
-        self.relu = nn.ReLU()
+        # Use ResNet18 which is simpler and well-established
+        resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        
+        # Remove the last fully connected layer
+        modules = list(resnet.children())[:-1]
+        self.resnet = nn.Sequential(*modules)
+        
+        # Add a new FC layer to get the embedding size we want
+        self.fc = nn.Linear(resnet.fc.in_features, embed_size)
         self.dropout = nn.Dropout(0.5)
 
+        self.flatten = nn.Flatten()
+
     def forward(self, images):
-        x = self.efficientnet(images)
-        output = self.dropout(self.relu(x))
-        return output
+        features = self.resnet(images)
+        # Flatten the feature map/image
+        features = self.flatten(features)
+        # Pass through our new FC layer
+        features = self.fc(features)
+        # Apply dropout
+        features = self.dropout(features)
+        return features
 
 class LSTM_Decoder(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size, num_layers):
@@ -30,22 +37,22 @@ class LSTM_Decoder(nn.Module):
 
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.lstm = nn.LSTM(input_size=embed_size, hidden_size=hidden_size, num_layers=num_layers)
-
-        # Output layer is vocab_size because it will output a probability for each word in the vocabulary
-        # Highest probability word will be the word that the model predicts
-        self.fc = nn.Linear(input_size=embed_size, output_Size=vocab_size) 
+        self.fc = nn.Linear(hidden_size, vocab_size)
         self.dropout = nn.Dropout(0.5)
 
-    def forward(self, encoder_features, caption):
-        embeddings = self.dropout(self.embed(caption))
-        # Say encoder_features is a tensor of shape (32, 256), we unsqueeze it to (1, 32, 256)
-        # Then we concatenate it with the embeddings tensor of shape (1, 32, 1024)
-        # This gives us a tensor of shape (2, 32, 1024)
+    def forward(self, encoder_features, captions):
+        # Embed the captions
+        embeddings = self.dropout(self.embed(captions))
+        
+        # Append the encoder features as the first "word" in the sequence
         embeddings = torch.cat((encoder_features.unsqueeze(0), embeddings), dim=0)
-        # We don't use hidden and cell state so we can use "_" to ignore them
-        lstm_out, (hidden, cell) = self.lstm(embeddings)
-        fc_out = self.fc(lstm_out)
-        return fc_out
+        
+        # Pass through LSTM
+        lstm_out, _ = self.lstm(embeddings)
+        
+        # Get predictions for each word
+        outputs = self.fc(lstm_out)
+        return outputs
 
 
 class CNN_to_LSTM(nn.Module):
@@ -56,42 +63,57 @@ class CNN_to_LSTM(nn.Module):
         self.decoder = LSTM_Decoder(embed_size, hidden_size, vocab_size, num_layers)
 
     def forward(self, images, captions):
-        # This is where we do a forward pass through both the CNN and the LSTM
+        # Encode the images
         encoder_features = self.encoder(images)
+        # Decode with the captions
         outputs = self.decoder(encoder_features, captions)
         return outputs
     
     def caption_image(self, image, vocabulary, max_length=30):
-        caption = []
-
+        result = []
+        hidden = None  # We'll let LSTM initialize its own state
+        
         with torch.no_grad():
-            features = self.encoder(image).unsqueeze(0)
-            states = (None, None) # Represented hidden and cell initial states of the LSTM
-
+            # Get image features from encoder
+            x = self.encoder(image).unsqueeze(0)
+            
+            # Generate caption one word at a time
             for i in range(max_length):
-                # Unrolling the LSTM one step at a time 
-                lstm_out, (hidden, cell) = self.decoder.lstm(features, states)
-                # fc_out is a probability distribution over the vocabulary
-                fc_out = self.decoder.fc(lstm_out)
-
-                # Get the word with the highest probability
-                output = torch.argmax(fc_out, dim=1)
-                caption.append(output.item())
-
-                features = self.decoder.embed(output).unsqueeze(0)
-
-                if output == vocabulary.index2word["<EOS>"]:
-                    break
+                # Get LSTM output
+                output, hidden = self.decoder.lstm(x, hidden)
                 
-    
-        return [vocabulary.index2word[i] for i in caption]
-    
+                # Get predicted next word
+                output = self.decoder.fc(output.squeeze(0))
+                predicted_word = output.argmax(1)
+                
+                # Add predicted word to result
+                word_idx = predicted_word.item()
+                result.append(word_idx)
+                
+                # End if we predict the end token
+                if word_idx == vocabulary.word_to_index["<EOS>"]:
+                    break
+                    
+                # If we want to feed predicted word back as input this is the code
+                # x = self.decoder.embed(predicted).unsqueeze(0)
+                
+        # Convert word indices to actual words and return
+        return [vocabulary.index_to_word[idx] for idx in result]
 
 def strength_test():
-    tensor = torch.randn(32, 64, 64, 3)
-    caption = torch.randint(0, 10000, (32, 10)) # Assume 10,000 words in the vocab and 32 captions of 10 words each
+    # Create tensors that match the dimensions from your dataset
+    image_tensor = torch.randn([32, 3, 224, 224])  # 32 images from batch
+    captions = torch.randint(0, 10000, (20, 32))   # 20 words for 32 captions
 
+    # Initialize model with smaller dimensions for quicker testing
+    model = CNN_to_LSTM(embed_size=256, hidden_size=256, num_layers=1, vocab_size=10000)
 
-    model = CNN_to_LSTM(embed_size=256, hidden_size=512, num_layers=3, vocab_size=10000)
+    # Forward pass
+    output = model(image_tensor, captions)
+    
+    # Print output shape
+    print("Output tensor shape:", output.shape)
+    print("Test completed successfully!")
 
 if __name__ == "__main__":
+    strength_test()
