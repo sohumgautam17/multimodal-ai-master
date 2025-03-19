@@ -3,9 +3,9 @@ import torch
 import pandas as pd 
 import nltk # Natural Language Toolkit
 from nltk import word_tokenize
+from PIL import Image
 nltk.download('punkt') # Download the punkt tokenizer
 from torch.utils.data import Dataset, DataLoader 
-
 
 class Vocabulary:
     def __init__(self, freq_threshold):
@@ -20,7 +20,7 @@ class Vocabulary:
 
     @staticmethod
     def tokenizer(text):
-        return [wordfor word in word_tokenize(text.lower())]
+        return [word for word in word_tokenize(text.lower())]
 
     def build_vocab(self, sentence_list):
 
@@ -31,25 +31,23 @@ class Vocabulary:
             tokens = self.tokenizer(sentence)
             for token in tokens:
                 if token not in frequencies:
-                    frequecies[token] = 1
+                    frequencies[token] = 1
                 else:
                     frequencies[token] += 1
-                    if freq_threshold[token] == selffreq_threshold:
-                        self.word_to_index[token] = start_idx
-                        self.index_to_word[start_idx] = token
-                        start_idx += 1
-                    else:
-                        continue
+                if token not in self.word_to_index and frequencies[token] >= self.freq_threshold:
+                    self.word_to_index[token] = start_idx
+                    self.index_to_word[start_idx] = token
+                    start_idx += 1
 
-    def get_indices(sentence):
+    def get_indices(self, sentence):
         '''
         Turn a sentence into a list of indices.
 
         Each word corresponds to an indices in the word_to_index dictionary we have built above 
         If a word does not exist then we return it as an Unkown ("UNK") token
         '''
-        tokenized_text = self.tokenizer(sentence_list)
-        return = [
+        tokenized_text = self.tokenizer(sentence)
+        return [
             self.word_to_index[word] if word in self.word_to_index else self.word_to_index["UNK"]
             for word in tokenized_text
         ]
@@ -67,7 +65,7 @@ class FlickrDataset(Dataset):
         self.vocab = Vocabulary(freq_threshold)
         self.vocab.build_vocab(self.captions.tolist())
 
-    def __init__(self):
+    def __len__(self): 
         return len(self.df)
 
     def __getitem__(self, idx):
@@ -76,11 +74,11 @@ class FlickrDataset(Dataset):
 
         img = Image.open(os.path.join(self.root_dir, img_id)).convert("RGB")
 
-        if transforms:
+        if self.transforms:
             img = self.transforms(img)            
 
-        numericalized_caption = self.vocab.word_to_index["<SOS>"]
-        numericalized_caption += self.vocab.get_indices(caption)
+        numericalized_caption = [self.vocab.word_to_index["<SOS>"]]
+        numericalized_caption.extend(self.vocab.get_indices(caption))
         numericalized_caption.append(self.vocab.word_to_index["<EOS>"])
 
         # Image will be a torch tensor because it will be included in our transforms, we need to convert caption
