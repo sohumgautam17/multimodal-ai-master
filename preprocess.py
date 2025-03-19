@@ -106,7 +106,7 @@ def get_loader(
     root_dir,
     captions_file, 
     transform,
-    batch_size=32,
+    batch_size,
     shuffle=True,
     num_workers=8,
 ):
@@ -117,7 +117,7 @@ def get_loader(
     data_loader = DataLoader(
         dataset, 
         batch_size=batch_size,
-        num_workers=num_workers,
+        num_workers=4,
         shuffle=shuffle,
         pin_memory=True, # Advanced Concept: Data placed in "VIP Section" of computer gets fast-track lane to the GPU when training
         collate_fn=MyCollate(pad_idx=pad_idx)

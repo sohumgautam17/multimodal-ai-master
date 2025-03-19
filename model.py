@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.models as models
 import torchvision.transforms as transforms
+from torchinfo import summary
 
 class CNN_Encoder(nn.Module): 
     def __init__(self, embed_size):
@@ -14,6 +15,9 @@ class CNN_Encoder(nn.Module):
         # Remove the last fully connected layer
         modules = list(resnet.children())[:-1]
         self.resnet = nn.Sequential(*modules)
+        for param in self.resnet.parameters():
+            param.requires_grad = False
+
         
         # Add a new FC layer to get the embedding size we want
         self.fc = nn.Linear(resnet.fc.in_features, embed_size)
@@ -107,6 +111,8 @@ def strength_test():
 
     # Initialize model with smaller dimensions for quicker testing
     model = CNN_to_LSTM(embed_size=256, hidden_size=256, num_layers=1, vocab_size=10000)
+
+    summary(model, input_data=[image_tensor, captions])
 
     # Forward pass
     output = model(image_tensor, captions)
