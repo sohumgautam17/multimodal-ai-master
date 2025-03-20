@@ -177,3 +177,5 @@ cython_debug/
 
 # Do not commit data folder to github 
 data/
+test_image.png
+checkpoints
