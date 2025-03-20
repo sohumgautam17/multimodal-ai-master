@@ -27,6 +27,7 @@ def train_loop(model, dataloader, loss_fn, optimizer, epochs, device, vocab_size
     
     # Track losses for plotting
     losses = []
+    best_loss = float('inf')
     
     # Move model to device
     model.to(device)
@@ -36,7 +37,7 @@ def train_loop(model, dataloader, loss_fn, optimizer, epochs, device, vocab_size
         epoch_loss = 0
         num_batches = 0
         
-        for images, captions in tqdm(dataloader, desc=f"Training"):
+        for images, captions in tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}"):
             # Move data to device
             images = images.to(device)
             captions = captions.to(device)
@@ -69,10 +70,13 @@ def train_loop(model, dataloader, loss_fn, optimizer, epochs, device, vocab_size
             # Backward pass
             loss.backward()
             
+            # Apply gradient clipping to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             # Update weights
             optimizer.step()
             
-            # Update progress bar
+            # Update progress 
             epoch_loss += loss.item()
             num_batches += 1
         
@@ -89,6 +93,12 @@ def train_loop(model, dataloader, loss_fn, optimizer, epochs, device, vocab_size
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': avg_epoch_loss,
         }, f"{save_path}/model_epoch_{epoch+1}.pt")
+        
+        # Save best model separately
+        if avg_epoch_loss < best_loss:
+            best_loss = avg_epoch_loss
+            torch.save(model, f"{save_path}/best_model.pt")
+            print(f"New best model saved with loss: {best_loss:.4f}")
     
     # Plot loss curve
     plt.figure(figsize=(10, 5))
@@ -102,7 +112,6 @@ def train_loop(model, dataloader, loss_fn, optimizer, epochs, device, vocab_size
     torch.save(model, f"{save_path}/final_model.pt")
     
     return losses
-
 
 if __name__ == "__main__":
     # Set device
@@ -131,8 +140,8 @@ if __name__ == "__main__":
     # Initialize model
     model = CNN_to_LSTM(
         embed_size=256,
-        hidden_size=256,
-        num_layers=1,
+        hidden_size=512,
+        num_layers=2,
         vocab_size=vocab_size
     )
     
@@ -147,11 +156,10 @@ if __name__ == "__main__":
         dataloader=train_loader,
         loss_fn=loss_fn,
         optimizer=optimizer,
-        epochs=10,
+        epochs=50,
         device=device,
         vocab_size=vocab_size
     )
     
     print("Training completed!")
     print(f"Final model saved to checkpoints/final_model.pt")
-

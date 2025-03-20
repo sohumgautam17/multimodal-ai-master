@@ -58,7 +58,7 @@ class Vocabulary:
 
 
 class FlickrDataset(Dataset):
-    def __init__(self, root_dir, caption_file, transforms=None, freq_threshold=5):
+    def __init__(self, root_dir, caption_file, transforms=None, freq_threshold=2):
         self.root_dir = root_dir 
         self.df = pd.read_csv(caption_file)
         self.transforms = transforms # Image transformations
@@ -151,4 +151,3 @@ if __name__ == "__main__":
         input()
 
     
-
