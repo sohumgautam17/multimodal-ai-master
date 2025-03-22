@@ -6,10 +6,8 @@ from torchvision import transforms
 from preprocess import get_loader
 
 def test_specific_images(model_path, image_folder, dataset_path, captions_file, device):
-    """
-    Very simple script to test specific images using the trained model
-    
-    Args:
+    """    
+    Args to remember:
         model_path: Path to the trained model
         image_folder: Folder containing test images
         dataset_path: Path to the original dataset (to get the vocabulary)
