@@ -2,8 +2,8 @@ import os
 import torch 
 import pandas as pd 
 import nltk # Natural Language Toolkit
-nltk.download("punkt")
-nltk.download('punkt_tab')
+nltk.download("punkt", quiet=True)
+nltk.download('punkt_tab', quiet=True)
 from nltk.tokenize import word_tokenize
 from torch.nn.utils.rnn import pad_sequence # From the RNN Library
 from torch.utils.data import Dataset, DataLoader 
@@ -11,10 +11,13 @@ from torchvision.transforms import transforms
 from PIL import Image  # Ensure PIL is imported
 import matplotlib.pyplot as plt
 
+# Import necessary classes and functions from utils.py
+from utils import MyCollate
 
 class Vocabulary:
     def __init__(self, freq_threshold):
         # We need a way to convert from word to index and vice versa 
+        # We start with empty dictionaries and we'll add to it
         self.index_to_word = {0: "<PAD>", 1: "<UNK>", 2: "< SOS >", 3: "<EOS>"}
         self.word_to_index = {"<PAD>": 0, "<UNK>": 1, "< SOS >": 2, "<EOS>": 3}
         self.freq_threshold = freq_threshold 
@@ -49,14 +52,15 @@ class Vocabulary:
 
         Each word corresponds to an indices in the word_to_index dictionary we have built above 
         If a word does not exist then we return it as an Unkown ("UNK") token
+
+        i.e.: My name is John Doe --> []
         '''
         tokenized_text = self.tokenizer(sentence)
         return [
             self.word_to_index[word] if word in self.word_to_index else self.word_to_index["<UNK>"]
             for word in tokenized_text
         ]
-
-
+    
 class FlickrDataset(Dataset):
     def __init__(self, root_dir, caption_file, transforms=None, freq_threshold=2):
         self.root_dir = root_dir 
@@ -88,28 +92,7 @@ class FlickrDataset(Dataset):
         # Image will be a torch tensor because it will be included in our transforms, we need to convert caption
         return img, torch.tensor(numericalized_caption)
 
-# This object is to pad captions to ensure they are all the same length
-class MyCollate:
-    def __init__(self, pad_idx):
-        self.pad_idx = pad_idx
-
-    def __call__(self, batch):
-        imgs = [item[0].unsqueeze(0) for item in batch]
-        imgs = torch.cat(imgs, dim=0)
-
-        captions = [item[1] for item in batch]
-        padded_captions = pad_sequence(captions, batch_first=False, padding_value=self.pad_idx)
-
-        return imgs, padded_captions
-
-def get_loader(
-    root_dir,
-    captions_file, 
-    transform,
-    batch_size,
-    shuffle=True,
-    num_workers=8,
-):
+def get_loader(root_dir, captions_file, transform, batch_size, shuffle=True, num_workers=8):
     dataset = FlickrDataset(root_dir, captions_file, transform)
 
     pad_idx = dataset.vocab.word_to_index["<PAD>"]
@@ -131,7 +114,7 @@ if __name__ == "__main__":
     )
 
     loader, dataset = get_loader(
-        "data/images/", "data/text.csv", transform=transform
+        FlickrDataset, "data/images/", "./data/text.csv", transform=transform, batch_size=16
     )
 
     for idx, (imgs, captions) in enumerate(loader):
@@ -149,5 +132,3 @@ if __name__ == "__main__":
             print(dataset.vocab.index_to_word.get(word_idx, "<UNK>"), end=" ")  
 
         input()
-
-    

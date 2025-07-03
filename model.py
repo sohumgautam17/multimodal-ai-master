@@ -88,59 +88,6 @@ class CNN_to_LSTM(nn.Module):
         
         return outputs
     
-    def caption_image(self, image, vocabulary, max_length=30):
-        """
-        Generate a caption for an image using the trained model
-        """
-        result = []
-        
-        with torch.no_grad():
-            # Encode the image
-            encoder_features = self.encoder(image)
-            
-            # Start with the SOS token
-            word_idx = vocabulary.word_to_index["< SOS >"]
-            result.append(word_idx)
-            
-            # Initialize states for LSTM
-            states = None
-            
-            # Start with SOS token embedding
-            inputs = self.decoder.embed(torch.tensor([word_idx], device=image.device)).unsqueeze(0)
-            
-            # First step: use the encoder features with the SOS token
-            x = torch.cat((encoder_features.unsqueeze(0), inputs), dim=0)
-            
-            # Loop until max length or EOS token
-            for i in range(max_length-1):  # -1 because we already added SOS
-                # Run LSTM for one step - outputs shape: [seq_len, batch, hidden]
-                if i == 0:
-                    # First step uses the concatenated input
-                    lstm_out, states = self.decoder.lstm(x)
-                else:
-                    # Subsequent steps use the previous word and states
-                    lstm_out, states = self.decoder.lstm(inputs, states)
-                
-                # Get prediction from the last output
-                output = self.decoder.fc(lstm_out[-1])
-                
-                # Get the most likely next word
-                predicted_idx = output.argmax(1).item()
-                result.append(predicted_idx)
-                
-                # Stop if we predict the end token
-                if predicted_idx == vocabulary.word_to_index["<EOS>"]:
-                    break
-                
-                # Use the predicted word as the next input (not teacher forcing)
-                inputs = self.decoder.embed(torch.tensor([predicted_idx], device=image.device)).unsqueeze(0)
-        
-        # Convert word indices to actual words and return
-        # Filter out padding, unknown, SOS and EOS tokens for cleaner output
-        special_tokens = ["<PAD>", "<UNK>", "< SOS >", "<EOS>"]
-        return [vocabulary.index_to_word[idx] for idx in result 
-                if vocabulary.index_to_word[idx] not in special_tokens]
-
 def strength_test():
     # Create tensors that match the dimensions from your dataset
     image_tensor = torch.randn([32, 3, 224, 224])  # 32 images from batch

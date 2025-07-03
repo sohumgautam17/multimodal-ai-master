@@ -4,6 +4,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from preprocess import get_loader
+from utils import caption_image
 
 def test_specific_images(model_path, image_folder, dataset_path, captions_file, device):
     """
@@ -47,7 +48,7 @@ def test_specific_images(model_path, image_folder, dataset_path, captions_file, 
             image_tensor = transform(image).unsqueeze(0).to(device)
             
             # Generate caption
-            generated_caption = model.caption_image(image_tensor, vocab)
+            generated_caption = caption_image(model, image_tensor, vocab)
             caption_text = " ".join(generated_caption)
             
             # Display results
